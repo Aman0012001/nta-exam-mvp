@@ -6,7 +6,7 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "build": "cd nta-backend && npm install && npx prisma generate && cd ../nta-exam && npm install && npm run build",
+    "build": "cd nta-backend && npm install && npx -y cross-env DATABASE_URL=postgresql://dummy npx prisma generate && cd ../nta-exam && npm install && npm run build",
     "start": "cd nta-backend && npx prisma db push && node src/index.js"
   }
 }
