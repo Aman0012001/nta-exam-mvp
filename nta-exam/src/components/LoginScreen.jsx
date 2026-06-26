@@ -112,9 +112,6 @@ export default function LoginScreen({ onLogin, onGuestMode, error }) {
       <footer className="login-footer">
         <p>© National Testing Agency — Secure Examination Platform</p>
         <div style={{ marginTop: '12px' }}>
-          <Link to="/admin/login" className="admin-portal-link" style={{ color: '#0d9488', textDecoration: 'none', fontWeight: '600', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            🔐 Admin Portal Login
-          </Link>
         </div>
       </footer>
     </div>
