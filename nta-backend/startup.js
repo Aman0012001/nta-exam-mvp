@@ -68,7 +68,7 @@ async function seedDatabase() {
     await prisma.admin.create({
       data: { username: ADMIN_USERNAME, password: hashed },
     });
-    console.log(`✅ Created default admin: ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}`);
+    console.log(`✅ Created default admin : ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}`);
   } else {
     // ── Backward-compat: if stored password is NOT a bcrypt hash, re-hash it ──
     const isBcrypt = existingAdmin.password.startsWith('$2');
@@ -83,7 +83,7 @@ async function seedDatabase() {
       console.log('✅ Admin user already exists with valid bcrypt password.');
     }
 
-    // Also update password to Admin@123 if it doesn't match
+    // Also update password to Admin@123 if it doesn't match hello
     // This ensures the specified credentials always work after deploy
     const isCurrentPassword = await bcrypt.compare(ADMIN_PASSWORD, existingAdmin.password);
     if (!isCurrentPassword && isBcrypt) {
