@@ -106,9 +106,7 @@ export default function LoginScreen({ onLogin, onGuestMode, error }) {
           </div>
         </div>
 
-        <div className="login-instructions">
 
-        </div>
       </div>
 
       <footer className="login-footer">
