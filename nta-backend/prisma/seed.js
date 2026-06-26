@@ -184,7 +184,7 @@ async function main() {
   const existingAdmin = await prisma.admin.findUnique({ where: { username: 'admin' } });
   if (!existingAdmin) {
     const bcrypt = require('bcryptjs');
-    const hashedPassword = await bcrypt.hash('password123', 10);
+    const hashedPassword = await bcrypt.hash('Admin@123', 10);
     await prisma.admin.create({
       data: {
         username: 'admin',
@@ -196,7 +196,7 @@ async function main() {
     console.log('   Admin user already exists.\n');
   }
 
-  // Insert questions + options
+  // Insert questions + options oiifihc
   const qCount = await prisma.question.count();
   if (qCount === 0) {
     console.log(`📚 Seeding ${allQuestions.length} questions...`);
