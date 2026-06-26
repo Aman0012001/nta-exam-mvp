@@ -88,3 +88,11 @@ model Admin {
   password  String
   createdAt DateTime @default(now())
 }
+
+// Pre-approved students who are allowed to take the exam
+model AllowedStudent {
+  id         Int      @id @default(autoincrement())
+  name       String
+  rollNumber String   @unique
+  createdAt  DateTime @default(now())
+}

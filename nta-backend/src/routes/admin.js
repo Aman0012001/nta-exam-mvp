@@ -274,4 +274,120 @@ router.delete('/attempts/:id', auth, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// STUDENT WHITELIST MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── GET /api/admin/students — List all allowed students ─────────────────
+router.get('/students', auth, async (req, res) => {
+  try {
+    const students = await prisma.allowedStudent.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json(students);
+  } catch (err) {
+    console.error('List students error:', err);
+    return res.status(500).json({ error: 'Failed to fetch students' });
+  }
+});
+
+// ── POST /api/admin/students — Add a single student ─────────────────────
+router.post('/students', auth, async (req, res) => {
+  try {
+    const { name, rollNumber } = req.body;
+
+    if (!name || !rollNumber) {
+      return res.status(400).json({ error: 'Name and Roll Number are required' });
+    }
+
+    const normalized = rollNumber.trim().toUpperCase();
+
+    // Check for duplicate
+    const existing = await prisma.allowedStudent.findUnique({
+      where: { rollNumber: normalized },
+    });
+    if (existing) {
+      return res.status(409).json({ error: `Roll number "${normalized}" already exists` });
+    }
+
+    const student = await prisma.allowedStudent.create({
+      data: { name: name.trim(), rollNumber: normalized },
+    });
+
+    return res.status(201).json(student);
+  } catch (err) {
+    console.error('Add student error:', err);
+    return res.status(500).json({ error: 'Failed to add student' });
+  }
+});
+
+// ── POST /api/admin/students/import — CSV bulk import ───────────────────
+router.post('/students/import', auth, async (req, res) => {
+  try {
+    const { students } = req.body;
+
+    if (!Array.isArray(students) || students.length === 0) {
+      return res.status(400).json({ error: 'Payload must contain a non-empty "students" array' });
+    }
+
+    let added = 0;
+    let skipped = 0;
+    const errors = [];
+
+    for (let i = 0; i < students.length; i++) {
+      const s = students[i];
+      const name = (s.name || '').trim();
+      const rollNumber = (s.rollNumber || '').trim().toUpperCase();
+
+      if (!name || !rollNumber) {
+        errors.push(`Row ${i + 1}: Missing name or roll number`);
+        skipped++;
+        continue;
+      }
+
+      try {
+        await prisma.allowedStudent.upsert({
+          where: { rollNumber },
+          update: { name }, // update name if roll number already exists
+          create: { name, rollNumber },
+        });
+        added++;
+      } catch (upsertErr) {
+        errors.push(`Row ${i + 1}: ${upsertErr.message}`);
+        skipped++;
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Imported ${added} students. ${skipped} skipped.`,
+      added,
+      skipped,
+      errors: errors.slice(0, 10), // limit error details
+    });
+  } catch (err) {
+    console.error('Import students error:', err);
+    return res.status(500).json({ error: 'Failed to import students' });
+  }
+});
+
+// ── DELETE /api/admin/students/:id — Remove a student ───────────────────
+router.delete('/students/:id', auth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid student id' });
+    }
+
+    await prisma.allowedStudent.delete({ where: { id } });
+    return res.json({ success: true, message: 'Student removed from whitelist.' });
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    console.error('Delete student error:', err);
+    return res.status(500).json({ error: 'Failed to delete student' });
+  }
+});
+
 module.exports = router;

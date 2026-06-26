@@ -39,7 +39,6 @@ export default function LoginScreen({ onLogin, onGuestMode, error }) {
           {error && (
             <div className="login-error">
               <span>⚠️</span> {error}
-              <small> (Check if the backend server is running on port 3001)</small>
             </div>
           )}
 

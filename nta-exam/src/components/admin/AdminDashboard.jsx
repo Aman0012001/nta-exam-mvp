@@ -4,7 +4,8 @@ import {
   Upload, LogOut, Database, FileText, CheckCircle2, 
   AlertTriangle, RefreshCw, Trash2, ArrowLeft, 
   Eye, Search, Download, X, Calendar, Clock, 
-  Award, BarChart2, Check, AlertCircle, FileSpreadsheet
+  Award, BarChart2, Check, AlertCircle, FileSpreadsheet,
+  Users, UserPlus
 } from 'lucide-react';
 import './Admin.css';
 
@@ -13,7 +14,7 @@ export default function AdminDashboard() {
   const [username, setUsername] = useState(localStorage.getItem('nta_admin_username'));
   const navigate = useNavigate();
 
-  // Navigation Tabs: 'questions' | 'results'
+  // Navigation Tabs: 'questions' | 'results' | 'students'
   const [activeTab, setActiveTab] = useState('results');
 
   // Loading States
@@ -49,6 +50,16 @@ export default function AdminDashboard() {
 
   // CSV Drag and Drop file ref
   const fileInputRef = useRef(null);
+  const studentFileInputRef = useRef(null);
+
+  // Student Management State
+  const [allowedStudents, setAllowedStudents] = useState([]);
+  const [studentName, setStudentName] = useState('');
+  const [studentRoll, setStudentRoll] = useState('');
+  const [studentStatusMsg, setStudentStatusMsg] = useState(null);
+  const [studentLoading, setStudentLoading] = useState(false);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [studentDragOver, setStudentDragOver] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -57,8 +68,122 @@ export default function AdminDashboard() {
       fetchSummary();
       fetchCurrentQuestions();
       fetchResults();
+      fetchStudents();
     }
   }, [token]);
+
+  // ── Student Management Functions ──────────────────────────────────────
+  const fetchStudents = async () => {
+    try {
+      const res = await fetch('/api/admin/students', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAllowedStudents(data);
+      }
+    } catch (err) {
+      console.error('Error fetching students:', err);
+    }
+  };
+
+  const handleAddStudent = async (e) => {
+    e.preventDefault();
+    if (!studentName.trim() || !studentRoll.trim()) return;
+    setStudentStatusMsg(null);
+    setStudentLoading(true);
+    try {
+      const res = await fetch('/api/admin/students', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: studentName.trim(), rollNumber: studentRoll.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add student');
+      setStudentStatusMsg({ type: 'success', text: `Student "${data.name}" (${data.rollNumber}) added successfully.` });
+      setStudentName('');
+      setStudentRoll('');
+      fetchStudents();
+    } catch (err) {
+      setStudentStatusMsg({ type: 'error', text: err.message });
+    } finally {
+      setStudentLoading(false);
+    }
+  };
+
+  const handleDeleteStudent = async (id, rollNumber) => {
+    if (!window.confirm(`Remove student ${rollNumber} from the allowed list?`)) return;
+    try {
+      const res = await fetch(`/api/admin/students/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchStudents();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete student');
+      }
+    } catch (err) {
+      alert('Network error');
+    }
+  };
+
+  const parseStudentCSV = (text) => {
+    const rows = text.split(/\r?\n/).filter(r => r.trim());
+    if (rows.length < 2) return [];
+    const parsed = [];
+    for (let i = 1; i < rows.length; i++) {
+      const cols = rows[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+      if (cols.length >= 2 && cols[0] && cols[1]) {
+        parsed.push({ name: cols[0], rollNumber: cols[1] });
+      }
+    }
+    return parsed;
+  };
+
+  const handleStudentFileImport = (file) => {
+    if (!file || !file.name.endsWith('.csv')) {
+      setStudentStatusMsg({ type: 'error', text: 'Please upload a .csv file' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const students = parseStudentCSV(event.target.result);
+      if (students.length === 0) {
+        setStudentStatusMsg({ type: 'error', text: 'No valid student rows found in CSV. Expected: Name,RollNumber' });
+        return;
+      }
+      setStudentLoading(true);
+      try {
+        const res = await fetch('/api/admin/students/import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ students })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Import failed');
+        setStudentStatusMsg({ type: 'success', text: data.message });
+        fetchStudents();
+      } catch (err) {
+        setStudentStatusMsg({ type: 'error', text: err.message });
+      } finally {
+        setStudentLoading(false);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const filteredStudents = allowedStudents.filter(s =>
+    s.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+    s.rollNumber.toLowerCase().includes(studentSearchQuery.toLowerCase())
+  );
 
   const fetchSummary = async () => {
     try {
@@ -537,6 +662,12 @@ Physics,Work & Energy,"A spring with k=200 N/m is compressed by 0.1 m. What is t
           >
             <Database size={16} /> Questions Database
           </button>
+          <button 
+            className={`admin-tab-btn ${activeTab === 'students' ? 'active' : ''}`}
+            onClick={() => setActiveTab('students')}
+          >
+            <Users size={16} /> Students
+          </button>
         </div>
 
         <div className="header-user">
@@ -937,6 +1068,170 @@ Physics,Work & Energy,"A spring with k=200 N/m is compressed by 0.1 m. What is t
                       )}
                     </button>
                   </form>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: STUDENTS MANAGEMENT */}
+        {activeTab === 'students' && (
+          <div className="students-tab-content">
+
+            {/* KPI Cards */}
+            <section className="kpi-dashboard-row">
+              <div className="kpi-card">
+                <div className="kpi-icon-box bg-blue">
+                  <Users size={24} />
+                </div>
+                <div className="kpi-details">
+                  <span className="kpi-value">{allowedStudents.length}</span>
+                  <span className="kpi-label">Registered Students</span>
+                </div>
+              </div>
+            </section>
+
+            <div className="students-grid">
+
+              {/* Left: Add Student Form + CSV Import */}
+              <div className="students-left-panel">
+                <div className="admin-card">
+                  <h3><UserPlus size={18} /> Add Student</h3>
+
+                  {studentStatusMsg && (
+                    <div className={`status-banner ${studentStatusMsg.type}`}>
+                      {studentStatusMsg.type === 'success' ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+                      <span>{studentStatusMsg.text}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleAddStudent} className="add-student-form">
+                    <div className="form-group">
+                      <label>Student Name</label>
+                      <input
+                        type="text"
+                        placeholder="Enter full name"
+                        value={studentName}
+                        onChange={(e) => setStudentName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Roll Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. JEE2024-123456"
+                        value={studentRoll}
+                        onChange={(e) => setStudentRoll(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="upload-submit-btn" disabled={studentLoading || !studentName.trim() || !studentRoll.trim()}>
+                      {studentLoading ? (
+                        <><RefreshCw className="spinner-icon" size={16} /> Adding...</>
+                      ) : (
+                        <><UserPlus size={16} /> Add Student</>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="admin-card">
+                  <h3><Upload size={18} /> Import Students CSV</h3>
+                  <p className="card-subtitle">Upload a CSV file with columns: <strong>Name, RollNumber</strong></p>
+
+                  <div
+                    className={`drag-drop-zone ${studentDragOver ? 'drag-active' : ''}`}
+                    onDragOver={(e) => { e.preventDefault(); setStudentDragOver(true); }}
+                    onDragLeave={() => setStudentDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setStudentDragOver(false);
+                      const file = e.dataTransfer.files[0];
+                      if (file) handleStudentFileImport(file);
+                    }}
+                    onClick={() => studentFileInputRef.current.click()}
+                  >
+                    <Upload className="upload-cloud-icon" size={36} />
+                    <p className="drag-text-primary">Drag & Drop <strong>.csv</strong> here</p>
+                    <p className="drag-text-secondary">or click to browse</p>
+                    <input
+                      type="file"
+                      ref={studentFileInputRef}
+                      accept=".csv"
+                      onChange={(e) => {
+                        if (e.target.files[0]) handleStudentFileImport(e.target.files[0]);
+                        e.target.value = '';
+                      }}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+
+                  <div className="csv-template-box">
+                    <h4>CSV Template</h4>
+                    <pre className="json-template csv-template">{`Name,RollNumber\nRahul Sharma,JEE2024-100001\nPriya Singh,JEE2024-100002\nAmit Kumar,JEE2024-100003`}</pre>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Students Table */}
+              <div className="students-right-panel">
+                <div className="admin-card table-section-card">
+                  <div className="table-header-controls">
+                    <h3><Users size={18} /> Allowed Students Registry</h3>
+                    <div className="filters-container">
+                      <div className="search-bar-wrapper">
+                        <Search size={16} className="search-icon" />
+                        <input
+                          type="text"
+                          placeholder="Search name or roll number..."
+                          value={studentSearchQuery}
+                          onChange={(e) => setStudentSearchQuery(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="results-table-wrapper">
+                    {filteredStudents.length === 0 ? (
+                      <div className="empty-table-state">
+                        <AlertCircle size={40} className="empty-icon" />
+                        <p>No students registered yet. Add students manually or import a CSV.</p>
+                      </div>
+                    ) : (
+                      <table className="results-data-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Roll Number</th>
+                            <th>Added On</th>
+                            <th className="actions-header">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredStudents.map((s, idx) => (
+                            <tr key={s.id}>
+                              <td>{idx + 1}</td>
+                              <td className="name-cell">{s.name}</td>
+                              <td className="roll-no-cell">{s.rollNumber}</td>
+                              <td className="date-cell">{new Date(s.createdAt).toLocaleDateString()}</td>
+                              <td className="action-cells">
+                                <button
+                                  onClick={() => handleDeleteStudent(s.id, s.rollNumber)}
+                                  className="action-btn delete-btn"
+                                  title="Remove student"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
                 </div>
               </div>
 

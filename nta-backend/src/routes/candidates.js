@@ -13,10 +13,23 @@ router.post('/', async (req, res) => {
       });
     }
 
+    const normalizedRoll = rollNumber.trim().toUpperCase();
+
+    // Check if this student is in the allowed whitelist
+    const allowed = await prisma.allowedStudent.findUnique({
+      where: { rollNumber: normalizedRoll },
+    });
+
+    if (!allowed) {
+      return res.status(403).json({
+        error: 'You are not registered for this examination. Please contact your exam administrator.',
+      });
+    }
+
     const candidate = await prisma.candidate.create({
       data: {
         name: name.trim(),
-        rollNumber: rollNumber.trim().toUpperCase(),
+        rollNumber: normalizedRoll,
         examSet: (examSet || 'SET-A').trim().toUpperCase(),
       },
     });

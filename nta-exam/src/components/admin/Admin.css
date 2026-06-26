@@ -1607,3 +1607,72 @@
   background-color: #0f172a;
 }
 
+/* ================= STUDENTS TAB ================= */
+.students-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 32px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .students-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.students-left-panel,
+.students-right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.add-student-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.add-student-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.add-student-form .form-group label {
+  font-size: 0.813rem;
+  font-weight: 600;
+  color: var(--admin-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.add-student-form .form-group input {
+  padding: 10px 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  outline: none;
+  background-color: #f8fafc;
+  transition: all 0.2s ease;
+}
+
+.add-student-form .form-group input:focus {
+  border-color: #0f766e;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
+}
+
+.csv-template-box {
+  margin-top: 20px;
+}
+
+.csv-template-box h4 {
+  font-size: 0.813rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
