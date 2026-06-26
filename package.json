@@ -7,6 +7,6 @@
   },
   "scripts": {
     "build": "cd nta-backend && npm install && npx -y cross-env DATABASE_URL=postgresql://dummy npx prisma generate && cd ../nta-exam && npm install && npm run build",
-    "start": "cd nta-backend && npx prisma migrate deploy && node prisma/seed.js && node src/index.js"
+    "start": "cd nta-backend && node startup.js"
   }
 }

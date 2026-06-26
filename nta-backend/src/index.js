@@ -11,10 +11,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Middleware ─────────────────────────────────────────────
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
-  credentials: true,
-}));
+// In production, frontend is served from the same origin, so we allow all.
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? true  // same-origin: allow all
+  : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // ── Routes ─────────────────────────────────────────────────
@@ -32,17 +33,20 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ── Serve Frontend (Production) ────────────────────────────
+// ── Serve Frontend (always — dist is built at deploy time) ──
 const path = require('path');
-if (process.env.NODE_ENV === 'production') {
-  // Serve the static files from the Vite build
-  const distPath = path.join(__dirname, '../../nta-exam/dist');
+const distPath = path.join(__dirname, '../../nta-exam/dist');
+const fs = require('fs');
+if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  
-  // Catch-all route to serve index.html for client-side routing
-  app.get('*', (req, res) => {
+  // Catch-all: serve index.html for any non-API route (React Router)
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
     res.sendFile(path.join(distPath, 'index.html'));
   });
+  console.log('📦 Serving frontend from:', distPath);
+} else {
+  console.log('ℹ️  No dist folder found, running in API-only mode');
 }
 
 // ── 404 handler ────────────────────────────────────────────
