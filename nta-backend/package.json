@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "NTA Exam Backend API with Express, Prisma, and PostgreSQL",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
