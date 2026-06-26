@@ -98,18 +98,7 @@ export default function LoginScreen({ onLogin, onGuestMode, error }) {
             </button>
           </form>
 
-          <div className="login-divider">
-            <span>or</span>
-          </div>
 
-          <button
-            type="button"
-            className="login-btn-guest"
-            onClick={onGuestMode}
-            disabled={submitting}
-          >
-            🔓 Continue as Guest (Offline Mode)
-          </button>
 
           <div className="login-info-box">
             <p>📋 <strong>Exam Details:</strong> Physics — 100 Questions — 120 Minutes</p>
