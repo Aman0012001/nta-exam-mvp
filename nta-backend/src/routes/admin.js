@@ -1,13 +1,15 @@
+'use strict';
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
+const prisma = require('../prisma');
 
 const router = express.Router();
-const prisma = require('../prisma');
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-me';
 
-// POST /api/admin/login — Login admin and return JWT
+// ── POST /api/admin/login ───────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -16,18 +18,21 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
+    // Normalize username: trim whitespace and lowercase
+    const normalizedUsername = username.trim().toLowerCase();
+
     const admin = await prisma.admin.findUnique({
-      where: { username: username.trim().toLowerCase() },
+      where: { username: normalizedUsername },
     });
 
     if (!admin) {
-      console.warn(`[auth] Login failed: user '${username}' not found in database`);
+      console.warn(`[auth] Login failed — user not found: "${normalizedUsername}"`);
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
-      console.warn(`[auth] Login failed: wrong password for user '${username}'`);
+      console.warn(`[auth] Login failed — wrong password for: "${normalizedUsername}"`);
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
@@ -37,41 +42,35 @@ router.post('/login', async (req, res) => {
       { expiresIn: '8h' }
     );
 
-    console.log(`[auth] Admin '${admin.username}' logged in successfully`);
-    res.json({ token, username: admin.username });
+    console.log(`[auth] ✅ Admin "${admin.username}" authenticated successfully`);
+    return res.json({ token, username: admin.username });
   } catch (err) {
-    console.error('Admin login error:', err);
-    res.status(500).json({ error: 'Internal server error during login' });
+    console.error('[auth] Login error:', err);
+    return res.status(500).json({ error: 'Internal server error during login' });
   }
+});
 
-// GET /api/admin/summary — Get statistics for the dashboard
+// ── GET /api/admin/summary ──────────────────────────────────────────────────
 router.get('/summary', auth, async (req, res) => {
   try {
     const totalQuestions = await prisma.question.count();
     const totalCandidates = await prisma.candidate.count();
-    
+
     const attempts = await prisma.examAttempt.findMany({
-      select: {
-        status: true,
-      },
+      select: { status: true },
     });
 
     const completedAttempts = attempts.filter((a) => a.status === 'submitted').length;
     const activeAttempts = attempts.filter((a) => a.status === 'in-progress').length;
 
-    res.json({
-      totalQuestions,
-      totalCandidates,
-      completedAttempts,
-      activeAttempts,
-    });
+    return res.json({ totalQuestions, totalCandidates, completedAttempts, activeAttempts });
   } catch (err) {
     console.error('Summary error:', err);
-    res.status(500).json({ error: 'Failed to fetch summary metrics' });
+    return res.status(500).json({ error: 'Failed to fetch summary metrics' });
   }
 });
 
-// POST /api/admin/upload-questions — Protected route to clear & upload questions
+// ── POST /api/admin/upload-questions ───────────────────────────────────────
 router.post('/upload-questions', auth, async (req, res) => {
   try {
     const { questions } = req.body;
@@ -79,12 +78,10 @@ router.post('/upload-questions', auth, async (req, res) => {
     if (!Array.isArray(questions)) {
       return res.status(400).json({ error: 'Payload must contain a "questions" array' });
     }
-
     if (questions.length === 0) {
       return res.status(400).json({ error: 'Questions array cannot be empty' });
     }
 
-    // Normalize and validate questions
     const normalizedQuestions = [];
     for (let idx = 0; idx < questions.length; idx++) {
       const q = questions[idx];
@@ -97,41 +94,32 @@ router.post('/upload-questions', auth, async (req, res) => {
       const diagramSvg = q.diagramSvg || null;
 
       if (!questionText || typeof questionText !== 'string') {
-        return res.status(400).json({ error: `Question at index ${idx} is missing a valid question text` });
+        return res.status(400).json({ error: `Question at index ${idx} is missing valid question text` });
       }
       if (!Array.isArray(options) || options.length < 2) {
         return res.status(400).json({ error: `Question at index ${idx} must have at least 2 options` });
       }
-      if (correctOption === undefined || typeof correctOption !== 'number' || correctOption < 1 || correctOption > options.length) {
-        return res.status(400).json({ error: `Question at index ${idx} has an invalid answer index ${correctOption} (must be 1-based index between 1 and ${options.length})` });
+      if (
+        correctOption === undefined ||
+        typeof correctOption !== 'number' ||
+        correctOption < 1 ||
+        correctOption > options.length
+      ) {
+        return res.status(400).json({
+          error: `Question at index ${idx} has invalid answer index ${correctOption} (must be 1-based, 1–${options.length})`,
+        });
       }
 
-      normalizedQuestions.push({
-        id: q.id || null,
-        questionText,
-        options,
-        correctOption,
-        subject,
-        topic,
-        diagramType,
-        diagramSvg,
-      });
+      normalizedQuestions.push({ id: q.id || null, questionText, options, correctOption, subject, topic, diagramType, diagramSvg });
     }
 
-    // Run the deletion and creation in a Prisma transaction
     await prisma.$transaction(async (tx) => {
-      // 1) Delete all response data
       await tx.response.deleteMany();
-      // 2) Delete all exam attempts
       await tx.examAttempt.deleteMany();
-      // 3) Delete all candidates
       await tx.candidate.deleteMany();
-      // 4) Delete all options
       await tx.option.deleteMany();
-      // 5) Delete all questions
       await tx.question.deleteMany();
 
-      // 6) Create new questions and options
       for (const q of normalizedQuestions) {
         await tx.question.create({
           data: {
@@ -153,17 +141,17 @@ router.post('/upload-questions', auth, async (req, res) => {
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
-      message: `Successfully uploaded ${normalizedQuestions.length} questions. All previous candidate records and attempts have been cleared.`,
+      message: `Successfully uploaded ${normalizedQuestions.length} questions.`,
     });
   } catch (err) {
     console.error('Upload questions error:', err);
-    res.status(500).json({ error: 'Failed to upload questions', details: err.message });
+    return res.status(500).json({ error: 'Failed to upload questions', details: err.message });
   }
 });
 
-// GET /api/admin/results — Fetch all student results & metrics
+// ── GET /api/admin/results ──────────────────────────────────────────────────
 router.get('/results', auth, async (req, res) => {
   try {
     const candidates = await prisma.candidate.findMany({
@@ -173,45 +161,33 @@ router.get('/results', auth, async (req, res) => {
             responses: {
               include: {
                 question: {
-                  include: {
-                    options: { orderBy: { optionNumber: 'asc' } }
-                  }
-                }
-              }
-            }
+                  include: { options: { orderBy: { optionNumber: 'asc' } } },
+                },
+              },
+            },
           },
-          orderBy: { startedAt: 'desc' }
-        }
+          orderBy: { startedAt: 'desc' },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     const totalQuestions = await prisma.question.count();
 
-    const results = candidates.map(c => {
+    const results = candidates.map((c) => {
       if (c.attempts.length === 0) {
-        return {
-          id: c.id,
-          name: c.name,
-          rollNumber: c.rollNumber,
-          examSet: c.examSet,
-          createdAt: c.createdAt,
-          attempts: []
-        };
+        return { id: c.id, name: c.name, rollNumber: c.rollNumber, examSet: c.examSet, createdAt: c.createdAt, attempts: [] };
       }
 
-      const attemptsMapped = c.attempts.map(a => {
-        let correct = 0;
-        let incorrect = 0;
-        let unanswered = 0;
-        let score = 0;
+      const attemptsMapped = c.attempts.map((a) => {
+        let correct = 0, incorrect = 0, unanswered = 0, score = 0;
 
         for (const r of a.responses) {
           if (r.status === 'answered' || r.status === 'answered-marked') {
             if (r.selectedOption === r.question.correctOption) {
               correct++;
               score += 4;
-            } else if (r.selectedOption !== null && r.selectedOption !== undefined) {
+            } else if (r.selectedOption != null) {
               incorrect++;
               score -= 1;
             } else {
@@ -222,15 +198,12 @@ router.get('/results', auth, async (req, res) => {
           }
         }
 
-        // Account for questions not present in responses at all as unanswered
-        const responseQuestionIds = new Set(a.responses.map(r => r.questionId));
-        const missingQuestionsCount = Math.max(0, totalQuestions - responseQuestionIds.size);
-        unanswered += missingQuestionsCount;
+        const responseQuestionIds = new Set(a.responses.map((r) => r.questionId));
+        unanswered += Math.max(0, totalQuestions - responseQuestionIds.size);
 
         const maxScore = totalQuestions * 4;
-        const accuracy = (correct + incorrect) > 0 
-          ? Math.round((correct / (correct + incorrect)) * 100) 
-          : 0;
+        const accuracy =
+          correct + incorrect > 0 ? Math.round((correct / (correct + incorrect)) * 100) : 0;
 
         return {
           id: a.id,
@@ -246,7 +219,7 @@ router.get('/results', auth, async (req, res) => {
           score,
           maxScore,
           accuracy,
-          responses: a.responses.map(r => ({
+          responses: a.responses.map((r) => ({
             id: r.id,
             questionId: r.questionId,
             selectedOption: r.selectedOption,
@@ -255,29 +228,22 @@ router.get('/results', auth, async (req, res) => {
             topic: r.question.topic,
             subject: r.question.subject,
             questionText: r.question.questionText,
-            options: r.question.options.map(o => o.optionText)
-          }))
+            options: r.question.options.map((o) => o.optionText),
+          })),
         };
       });
 
-      return {
-        id: c.id,
-        name: c.name,
-        rollNumber: c.rollNumber,
-        examSet: c.examSet,
-        createdAt: c.createdAt,
-        attempts: attemptsMapped
-      };
+      return { id: c.id, name: c.name, rollNumber: c.rollNumber, examSet: c.examSet, createdAt: c.createdAt, attempts: attemptsMapped };
     });
 
-    res.json(results);
+    return res.json(results);
   } catch (err) {
     console.error('Fetch student results error:', err);
-    res.status(500).json({ error: 'Failed to fetch student results report' });
+    return res.status(500).json({ error: 'Failed to fetch student results' });
   }
 });
 
-// DELETE /api/admin/attempts/:id — Delete an exam attempt and candidate record if no other attempts exist
+// ── DELETE /api/admin/attempts/:id ─────────────────────────────────────────
 router.delete('/attempts/:id', auth, async (req, res) => {
   try {
     const attemptId = parseInt(req.params.id, 10);
@@ -285,10 +251,7 @@ router.delete('/attempts/:id', auth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid attempt id' });
     }
 
-    const attempt = await prisma.examAttempt.findUnique({
-      where: { id: attemptId }
-    });
-
+    const attempt = await prisma.examAttempt.findUnique({ where: { id: attemptId } });
     if (!attempt) {
       return res.status(404).json({ error: 'Attempt not found' });
     }
@@ -296,28 +259,18 @@ router.delete('/attempts/:id', auth, async (req, res) => {
     const candidateId = attempt.candidateId;
 
     await prisma.$transaction(async (tx) => {
-      // Delete attempt (responses are deleted via cascade FK onDelete)
-      await tx.examAttempt.delete({
-        where: { id: attemptId }
-      });
+      await tx.examAttempt.delete({ where: { id: attemptId } });
 
-      // Count remaining attempts for the candidate
-      const count = await tx.examAttempt.count({
-        where: { candidateId }
-      });
-
-      // If no attempts left, delete the candidate too
-      if (count === 0) {
-        await tx.candidate.delete({
-          where: { id: candidateId }
-        });
+      const remaining = await tx.examAttempt.count({ where: { candidateId } });
+      if (remaining === 0) {
+        await tx.candidate.delete({ where: { id: candidateId } });
       }
     });
 
-    res.json({ success: true, message: 'Attempt and candidate records deleted successfully.' });
+    return res.json({ success: true, message: 'Attempt deleted successfully.' });
   } catch (err) {
     console.error('Delete attempt error:', err);
-    res.status(500).json({ error: 'Failed to delete exam attempt' });
+    return res.status(500).json({ error: 'Failed to delete exam attempt' });
   }
 });
 
