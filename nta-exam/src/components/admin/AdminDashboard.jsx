@@ -78,6 +78,10 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/students', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (res.status === 401 || res.status === 403) {
+        handleLogout();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setAllowedStudents(data);
@@ -101,6 +105,10 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({ name: studentName.trim(), rollNumber: studentRoll.trim() })
       });
+      if (res.status === 401 || res.status === 403) {
+        handleLogout();
+        return;
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to add student');
       setStudentStatusMsg({ type: 'success', text: `Student "${data.name}" (${data.rollNumber}) added successfully.` });
@@ -121,6 +129,10 @@ export default function AdminDashboard() {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (res.status === 401 || res.status === 403) {
+        handleLogout();
+        return;
+      }
       if (res.ok) {
         fetchStudents();
       } else {
@@ -167,6 +179,10 @@ export default function AdminDashboard() {
           },
           body: JSON.stringify({ students })
         });
+        if (res.status === 401 || res.status === 403) {
+          handleLogout();
+          return;
+        }
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Import failed');
         setStudentStatusMsg({ type: 'success', text: data.message });

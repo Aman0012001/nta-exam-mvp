@@ -23,7 +23,7 @@ export default function ExamPortal() {
 
   // ── Exam UI state ──────────────────────────────────────────────────────────
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(120 * 60);
+  const [timeRemaining, setTimeRemaining] = useState(60 * 60);
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
 
   // ── Load questions from API (called after login) ───────────────────────────
@@ -84,7 +84,7 @@ export default function ExamPortal() {
       );
 
       setCurrentIdx(0);
-      setTimeRemaining(120 * 60);
+      setTimeRemaining(60 * 60);
       setPhase('exam');
     } catch (err) {
       console.error('Login/setup error:', err);
@@ -105,7 +105,7 @@ export default function ExamPortal() {
       }))
     );
     setCurrentIdx(0);
-    setTimeRemaining(120 * 60);
+    setTimeRemaining(60 * 60);
     setPhase('exam');
   };
 
@@ -194,7 +194,7 @@ export default function ExamPortal() {
     // If we have a real attempt ID, persist responses to the backend
     if (attemptId) {
       try {
-        const timeTakenSecs = 120 * 60 - timeRemaining;
+        const timeTakenSecs = 60 * 60 - timeRemaining;
         const responses = questionsState.map((q) => ({
           questionId: q.id,
           selectedOption: q.selectedOption,
@@ -220,7 +220,7 @@ export default function ExamPortal() {
     setAttemptId(null);
     setQuestionsState([]);
     setCurrentIdx(0);
-    setTimeRemaining(120 * 60);
+    setTimeRemaining(60 * 60);
     setPhase('login');
   };
 
@@ -279,9 +279,6 @@ export default function ExamPortal() {
               </div>
             </div>
 
-            <button className="restart-btn" onClick={handleRestart}>
-              Start New Test / Practice Again
-            </button>
           </div>
         </div>
       ) : (
