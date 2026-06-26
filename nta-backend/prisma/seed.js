@@ -179,56 +179,55 @@ const allQuestions = [...detailedQuestions, ...autoQuestions];
 async function main() {
   console.log('🌱 Starting database seed...\n');
 
-  // Clear existing data (in correct FK order)
-  console.log('🗑️  Clearing existing data...');
-  await prisma.response.deleteMany();
-  await prisma.examAttempt.deleteMany();
-  await prisma.candidate.deleteMany();
-  await prisma.option.deleteMany();
-  await prisma.question.deleteMany();
-  await prisma.admin.deleteMany();
-  console.log('   Done.\n');
-
   // Seed default admin user
-  console.log('👤 Seeding default admin user...');
-  const bcrypt = require('bcryptjs');
-  const hashedPassword = await bcrypt.hash('password123', 10);
-  await prisma.admin.create({
-    data: {
-      username: 'admin',
-      password: hashedPassword,
-    },
-  });
-  console.log('   Done.\n');
-
-  // Insert questions + options
-  console.log(`📚 Seeding ${allQuestions.length} questions...`);
-  let count = 0;
-  for (const q of allQuestions) {
-    await prisma.question.create({
+  console.log('👤 Checking admin user...');
+  const existingAdmin = await prisma.admin.findUnique({ where: { username: 'admin' } });
+  if (!existingAdmin) {
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash('password123', 10);
+    await prisma.admin.create({
       data: {
-        id: q.id,
-        subject: q.subject,
-        topic: q.topic,
-        questionText: q.question,
-        diagramType: q.diagramType ?? null,
-        diagramSvg: null, // SVGs are rendered on the frontend
-        correctOption: q.answer,
-        options: {
-          create: q.options.map((text, idx) => ({
-            optionNumber: idx + 1,
-            optionText: text,
-          })),
-        },
+        username: 'admin',
+        password: hashedPassword,
       },
     });
-    count++;
-    if (count % 10 === 0) {
-      console.log(`   Inserted ${count}/${allQuestions.length}...`);
-    }
+    console.log('   Created default admin user (admin / password123).\n');
+  } else {
+    console.log('   Admin user already exists.\n');
   }
 
-  console.log(`\n✅ Seeded ${count} questions successfully!`);
+  // Insert questions + options
+  const qCount = await prisma.question.count();
+  if (qCount === 0) {
+    console.log(`📚 Seeding ${allQuestions.length} questions...`);
+    let count = 0;
+    for (const q of allQuestions) {
+      await prisma.question.create({
+        data: {
+          id: q.id,
+          subject: q.subject,
+          topic: q.topic,
+          questionText: q.question,
+          diagramType: q.diagramType ?? null,
+          diagramSvg: null, // SVGs are rendered on the frontend
+          correctOption: q.answer,
+          options: {
+            create: q.options.map((text, idx) => ({
+              optionNumber: idx + 1,
+              optionText: text,
+            })),
+          },
+        },
+      });
+      count++;
+      if (count % 10 === 0) {
+        console.log(`   Inserted ${count}/${allQuestions.length}...`);
+      }
+    }
+    console.log(`\n✅ Seeded ${count} questions successfully!`);
+  } else {
+    console.log(`📚 Found ${qCount} existing questions, skipping question seed.`);
+  }
   console.log('\n💡 You can now start the server with: npm run dev');
 }
 
