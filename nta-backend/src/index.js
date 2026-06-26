@@ -32,20 +32,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ── 404 handler ────────────────────────────────────────────
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// ── Global error handler ───────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
-  });
-});
-
 // ── Serve Frontend (Production) ────────────────────────────
 const path = require('path');
 if (process.env.NODE_ENV === 'production') {
@@ -59,6 +45,25 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// ── 404 handler ────────────────────────────────────────────
+app.use((req, res) => {
+  if (req.path.startsWith('/api/')) {
+    res.status(404).json({ error: 'Route not found' });
+  } else {
+    res.status(404).send('Not Found');
+  }
+});
+
+// ── Global error handler ───────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+  });
+});
+
+// (Static serving logic moved up)
 // ── Start server ───────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅ NTA Backend running at http://localhost:${PORT}`);
