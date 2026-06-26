@@ -1,11 +1,10 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../prisma');
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-me';
 
 // POST /api/admin/login — Login admin and return JWT

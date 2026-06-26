@@ -46,6 +46,19 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ── Serve Frontend (Production) ────────────────────────────
+const path = require('path');
+if (process.env.NODE_ENV === 'production') {
+  // Serve the static files from the Vite build
+  const distPath = path.join(__dirname, '../../nta-exam/dist');
+  app.use(express.static(distPath));
+  
+  // Catch-all route to serve index.html for client-side routing
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
 // ── Start server ───────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅ NTA Backend running at http://localhost:${PORT}`);
