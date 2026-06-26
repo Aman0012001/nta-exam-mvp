@@ -53,48 +53,22 @@ function pushSchema() {
 
 // ── Step 3: Seed default admin + questions ──────────────────────────────────
 async function seedDatabase() {
-  console.log('▶ Checking database seed...');
+  console.log('▶ Ensuring admin credentials and questions...');
 
-  // ── Admin user ────────────────────────────────────────────────────────────
   const ADMIN_USERNAME = 'admin';
-  const ADMIN_PASSWORD = 'Admin@123'; // Plain text — will be hashed below
+  const ADMIN_PASSWORD = 'Admin@123';
 
-  const existingAdmin = await prisma.admin.findUnique({
-    where: { username: ADMIN_USERNAME },
+  // Always hash fresh — never use stale in-memory values
+  const hashed = await bcrypt.hash(ADMIN_PASSWORD, 12);
+
+  // upsert: create if not exists, always overwrite password with correct hash
+  await prisma.admin.upsert({
+    where:  { username: ADMIN_USERNAME },
+    update: { password: hashed },
+    create: { username: ADMIN_USERNAME, password: hashed },
   });
 
-  if (!existingAdmin) {
-    const hashed = await bcrypt.hash(ADMIN_PASSWORD, 12);
-    await prisma.admin.create({
-      data: { username: ADMIN_USERNAME, password: hashed },
-    });
-    console.log(`✅ Created default admin : ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}`);
-  } else {
-    // ── Backward-compat: if stored password is NOT a bcrypt hash, re-hash it ──
-    const isBcrypt = existingAdmin.password.startsWith('$2');
-    if (!isBcrypt) {
-      const hashed = await bcrypt.hash(existingAdmin.password, 12);
-      await prisma.admin.update({
-        where: { username: ADMIN_USERNAME },
-        data: { password: hashed },
-      });
-      console.log('🔒 Re-hashed plain-text password for existing admin.');
-    } else {
-      console.log('✅ Admin user already exists with valid bcrypt password.');
-    }
-
-    // Also update password to Admin@123 if it doesn't match hello
-    // This ensures the specified credentials always work after deploy
-    const isCurrentPassword = await bcrypt.compare(ADMIN_PASSWORD, existingAdmin.password);
-    if (!isCurrentPassword && isBcrypt) {
-      const hashed = await bcrypt.hash(ADMIN_PASSWORD, 12);
-      await prisma.admin.update({
-        where: { username: ADMIN_USERNAME },
-        data: { password: hashed },
-      });
-      console.log('🔄 Updated admin password to configured Admin@123.');
-    }
-  }
+  console.log(`✅ Admin ready — username: "${ADMIN_USERNAME}" / password: "${ADMIN_PASSWORD}"`);
 
   // ── Questions ─────────────────────────────────────────────────────────────
   const questionCount = await prisma.question.count();
