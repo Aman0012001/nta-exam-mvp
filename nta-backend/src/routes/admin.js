@@ -17,30 +17,32 @@ router.post('/login', async (req, res) => {
     }
 
     const admin = await prisma.admin.findUnique({
-      where: { username: username.trim() },
+      where: { username: username.trim().toLowerCase() },
     });
 
     if (!admin) {
+      console.warn(`[auth] Login failed: user '${username}' not found in database`);
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
+      console.warn(`[auth] Login failed: wrong password for user '${username}'`);
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
     const token = jwt.sign(
       { id: admin.id, username: admin.username },
       JWT_SECRET,
-      { expiresIn: '2h' }
+      { expiresIn: '8h' }
     );
 
+    console.log(`[auth] Admin '${admin.username}' logged in successfully`);
     res.json({ token, username: admin.username });
   } catch (err) {
     console.error('Admin login error:', err);
     res.status(500).json({ error: 'Internal server error during login' });
   }
-});
 
 // GET /api/admin/summary — Get statistics for the dashboard
 router.get('/summary', auth, async (req, res) => {
